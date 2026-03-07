@@ -1,4 +1,6 @@
 import { Bot, InlineKeyboard } from 'grammy'
+import { generateAdminToken } from './adminAuth'
+import { createServiceClient } from './supabase'
 
 const token = process.env.TELEGRAM_BOT_TOKEN!
 export const bot = new Bot(token)
@@ -24,13 +26,32 @@ bot.command('orders', async (ctx) => {
 })
 
 bot.command('admin', async (ctx) => {
-  const adminId = process.env.ADMIN_TELEGRAM_ID
-  if (!adminId || ctx.from?.id.toString() !== adminId) {
+  const fromId = ctx.from?.id
+  if (!fromId) return
+
+  // Check admins table in DB
+  const db = createServiceClient()
+  const { data } = await db
+    .from('admins')
+    .select('id')
+    .eq('telegram_id', fromId)
+    .single()
+
+  if (!data) {
     await ctx.reply('У вас нет доступа к этой команде.')
     return
   }
-  const keyboard = new InlineKeyboard().webApp('⚙️ Админ панель', `${APP_URL}/admin`)
-  await ctx.reply('Добро пожаловать в панель администратора:', { reply_markup: keyboard })
+
+  const authToken = generateAdminToken(fromId)
+  const authUrl = `${APP_URL}/api/admin/auth?token=${authToken}`
+
+  await ctx.reply(
+    `🔐 *Ссылка для входа в админ-панель*\n\nСсылка действительна 1 час. Не передавайте её другим.`,
+    {
+      parse_mode: 'Markdown',
+      reply_markup: new InlineKeyboard().url('⚙️ Войти в админ-панель', authUrl),
+    }
+  )
 })
 
 export async function sendOrderConfirmation(
