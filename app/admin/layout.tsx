@@ -3,6 +3,8 @@ import { verifyAdminToken } from '@/lib/adminAuth'
 import AdminNav from '@/components/AdminNav'
 import Link from 'next/link'
 
+const BOT_USERNAME = 'missburgerdostavka_bot'
+
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const cookieStore = await cookies()
   const session = cookieStore.get('admin_session')
@@ -17,9 +19,15 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           Отправьте команду <span className="text-brand-orange font-mono">/admin</span> боту,
           чтобы получить ссылку для входа.
         </p>
+        <a
+          href={`https://t.me/${BOT_USERNAME}?start=admin`}
+          className="bg-brand-orange hover:bg-orange-600 text-white rounded-xl px-6 py-3 font-semibold transition-colors"
+        >
+          Открыть бота
+        </a>
         <Link
           href="/"
-          className="bg-brand-red hover:bg-red-800 text-white rounded-xl px-6 py-3 font-semibold transition-colors"
+          className="text-gray-400 hover:text-white text-sm transition-colors"
         >
           На главную
         </Link>
