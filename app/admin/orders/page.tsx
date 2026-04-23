@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
+import { supabase } from '@/lib/supabase'
 import type { Order } from '@/lib/types'
 import OrderStatus from '@/components/OrderStatus'
 
@@ -34,8 +35,14 @@ export default function AdminOrdersPage() {
 
   useEffect(() => {
     fetchOrders()
-    const interval = setInterval(fetchOrders, 30000)
-    return () => clearInterval(interval)
+
+    const channel = supabase
+      .channel('admin-orders')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'orders' }, fetchOrders)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders' }, fetchOrders)
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
   }, [fetchOrders])
 
   const updateStatus = async (orderId: number, status: Order['status']) => {

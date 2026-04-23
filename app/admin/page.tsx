@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { createServiceClient } from '@/lib/supabase'
 
 const formatPrice = (uzs: number) => uzs.toLocaleString('ru-RU') + " so'm"
 

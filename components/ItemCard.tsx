@@ -3,17 +3,24 @@
 import Image from 'next/image'
 import type { MenuItem } from '@/lib/types'
 import { useCart } from '@/hooks/useCart'
+import { getPlaceholder } from '@/lib/placeholders'
 
 const formatPrice = (uzs: number) => uzs.toLocaleString('ru-RU') + " so'm"
 
-export default function ItemCard({ item }: { item: MenuItem }) {
+interface Props {
+  item: MenuItem
+  departmentSlug?: string
+}
+
+export default function ItemCard({ item, departmentSlug = '' }: Props) {
   const { addItem, items, updateQty } = useCart()
   const cartItem = items.find((i) => i.id === item.id)
   const qty = cartItem?.quantity ?? 0
+  const ph = getPlaceholder(departmentSlug)
 
   return (
     <div className="bg-brand-card rounded-2xl overflow-hidden flex flex-col shadow-md">
-      <div className="relative w-full h-36 bg-brand-muted">
+      <div className="relative w-full h-36">
         {item.image_url ? (
           <Image
             src={item.image_url}
@@ -23,8 +30,11 @@ export default function ItemCard({ item }: { item: MenuItem }) {
             sizes="(max-width: 768px) 50vw, 33vw"
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-4xl">
-            🍔
+          <div
+            className="w-full h-full flex items-center justify-center text-5xl"
+            style={{ background: `linear-gradient(135deg, ${ph.from}, ${ph.to})` }}
+          >
+            {ph.emoji}
           </div>
         )}
       </div>

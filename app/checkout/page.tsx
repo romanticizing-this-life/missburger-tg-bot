@@ -5,9 +5,13 @@ import { useRouter } from 'next/navigation'
 import { useCart } from '@/hooks/useCart'
 import { useTelegramUser } from '@/hooks/useTelegramUser'
 import { supabase } from '@/lib/supabase'
+import { haversineKm, BRANCHES, DELIVERY_RADIUS_KM } from '@/lib/geo'
 import type { Location } from '@/lib/types'
 
 const formatPrice = (uzs: number) => uzs.toLocaleString('ru-RU') + " so'm"
+
+const DELIVERY_FREE_THRESHOLD = 100_000
+const DELIVERY_FEE = 10_000
 
 export default function CheckoutPage() {
   const router = useRouter()
@@ -18,8 +22,17 @@ export default function CheckoutPage() {
   const [comment, setComment] = useState('')
   const [locationId, setLocationId] = useState<number | null>(null)
   const [locations, setLocations] = useState<Location[]>([])
+  const [phone, setPhone] = useState('')
+  const [hasRequestContact, setHasRequestContact] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [geoLoading, setGeoLoading] = useState(false)
+  const [geoWarning, setGeoWarning] = useState('')
+  const [largOrderConfirmed, setLargeOrderConfirmed] = useState(false)
+
+  useEffect(() => {
+    setHasRequestContact(!!window.Telegram?.WebApp?.requestContact)
+  }, [])
 
   useEffect(() => {
     supabase
@@ -35,9 +48,68 @@ export default function CheckoutPage() {
       })
   }, [])
 
+  const detectLocation = () => {
+    setGeoLoading(true)
+    setGeoWarning('')
+
+    const onLocation = (lat: number, lng: number) => {
+      // Find nearest branch and auto-select it
+      let nearestId = locations[0]?.id ?? null
+      let minDist = Infinity
+      BRANCHES.forEach((branch) => {
+        const dist = haversineKm(lat, lng, branch.lat, branch.lng)
+        if (dist < minDist) { minDist = dist; nearestId = branch.id }
+      })
+      if (nearestId) setLocationId(nearestId)
+      if (minDist > DELIVERY_RADIUS_KM) {
+        setGeoWarning(`Вы в ${minDist.toFixed(1)} км от ближайшего филиала. Доставка может быть недоступна.`)
+      }
+      setGeoLoading(false)
+    }
+
+    const onError = () => {
+      setGeoWarning('Не удалось определить местоположение')
+      setGeoLoading(false)
+    }
+
+    const lm = window.Telegram?.WebApp?.LocationManager
+    if (lm) {
+      lm.init(() => {
+        if (lm.isLocationAvailable) {
+          lm.getLocation((loc) => {
+            if (loc) onLocation(loc.latitude, loc.longitude)
+            else onError()
+          })
+        } else onError()
+      })
+    } else if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => onLocation(pos.coords.latitude, pos.coords.longitude),
+        onError,
+        { timeout: 8000 }
+      )
+    } else {
+      onError()
+    }
+  }
+
   if (items.length === 0) {
     router.push('/')
     return null
+  }
+
+  const cartTotal = total()
+  const deliveryFee = orderType === 'delivery' && cartTotal < DELIVERY_FREE_THRESHOLD ? DELIVERY_FEE : 0
+  const finalTotal = cartTotal + deliveryFee
+  const amountUntilFree = DELIVERY_FREE_THRESHOLD - cartTotal
+  const isLargeOrder = finalTotal >= 500_000
+
+  const handleRequestContact = () => {
+    window.Telegram?.WebApp?.requestContact?.((isSent) => {
+      if (!isSent) return
+      // Contact sent to bot; phone will be stored on next order update.
+      // Attempt to pre-fill from initDataUnsafe if available.
+    })
   }
 
   const handleSubmit = async () => {
@@ -47,6 +119,15 @@ export default function CheckoutPage() {
     }
     if (!locationId) {
       setError('Выберите филиал')
+      return
+    }
+    if (phone && !/^\d{9}$/.test(phone)) {
+      setError('Введите корректный номер телефона (9 цифр после +998)')
+      return
+    }
+    // Large order confirmation gate
+    if (isLargeOrder && !largOrderConfirmed) {
+      setLargeOrderConfirmed(true)
       return
     }
     setLoading(true)
@@ -67,7 +148,9 @@ export default function CheckoutPage() {
             price: i.price,
             quantity: i.quantity,
           })),
-          total: total(),
+          total: finalTotal,
+          deliveryFee,
+          phone: phone ? `+998${phone}` : null,
         }),
       })
       const data = await res.json()
@@ -111,6 +194,44 @@ export default function CheckoutPage() {
           </div>
         </div>
 
+        {/* Phone number */}
+        <div className="bg-brand-card rounded-2xl p-4">
+          <p className="text-sm font-semibold text-gray-400 mb-3">Номер телефона</p>
+          <div className="flex items-center gap-2">
+            <span className="text-white text-sm font-medium bg-brand-muted px-3 py-3 rounded-xl flex-shrink-0">
+              +998
+            </span>
+            <input
+              type="tel"
+              inputMode="numeric"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 9))}
+              placeholder="91 234 56 78"
+              className="flex-1 bg-brand-muted text-white rounded-xl px-4 py-3 text-sm outline-none focus:ring-1 focus:ring-brand-orange placeholder:text-gray-500"
+            />
+          </div>
+          {hasRequestContact && (
+            <button
+              onClick={handleRequestContact}
+              className="mt-2 w-full text-xs text-brand-orange hover:text-orange-400 transition-colors py-1"
+            >
+              Поделиться номером через Telegram
+            </button>
+          )}
+        </div>
+
+        {/* Free delivery nudge */}
+        {orderType === 'delivery' && amountUntilFree > 0 && (
+          <div className="bg-brand-orange/10 border border-brand-orange/30 rounded-2xl px-4 py-3 text-sm text-brand-orange">
+            Добавьте ещё <span className="font-bold">{formatPrice(amountUntilFree)}</span> для бесплатной доставки
+          </div>
+        )}
+        {orderType === 'delivery' && deliveryFee === 0 && (
+          <div className="bg-green-900/20 border border-green-700/30 rounded-2xl px-4 py-3 text-sm text-green-400">
+            Бесплатная доставка
+          </div>
+        )}
+
         {/* Address (delivery only) */}
         {orderType === 'delivery' && (
           <div className="bg-brand-card rounded-2xl p-4">
@@ -127,7 +248,24 @@ export default function CheckoutPage() {
 
         {/* Branch selection */}
         <div className="bg-brand-card rounded-2xl p-4">
-          <p className="text-sm font-semibold text-gray-400 mb-3">Филиал</p>
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-sm font-semibold text-gray-400">Филиал</p>
+            {orderType === 'delivery' && (
+              <button
+                onClick={detectLocation}
+                disabled={geoLoading}
+                className="flex items-center gap-1.5 text-xs text-brand-orange hover:text-orange-400 transition-colors disabled:opacity-50"
+              >
+                <span>{geoLoading ? '...' : '📍'}</span>
+                <span>{geoLoading ? 'Определяем...' : 'Определить'}</span>
+              </button>
+            )}
+          </div>
+          {geoWarning && (
+            <div className="bg-yellow-900/20 border border-yellow-700/30 rounded-xl px-3 py-2 text-xs text-yellow-400 mb-3">
+              {geoWarning}
+            </div>
+          )}
           {locations.map((loc) => (
             <button
               key={loc.id}
@@ -171,12 +309,30 @@ export default function CheckoutPage() {
               </span>
             </div>
           ))}
+          {orderType === 'delivery' && (
+            <div className="flex justify-between text-sm mb-2 mt-1">
+              <span className="text-gray-400">Доставка</span>
+              <span className={deliveryFee === 0 ? 'text-green-400' : 'text-white'}>
+                {deliveryFee === 0 ? 'Бесплатно' : formatPrice(deliveryFee)}
+              </span>
+            </div>
+          )}
           <div className="border-t border-brand-muted mt-3 pt-3 flex justify-between font-bold">
             <span>Итого</span>
-            <span className="text-brand-orange">{formatPrice(total())}</span>
+            <span className="text-brand-orange">{formatPrice(finalTotal)}</span>
           </div>
           <p className="text-xs text-gray-500 mt-2">Оплата при получении (наличные)</p>
         </div>
+
+        {/* Large order confirmation */}
+        {isLargeOrder && largOrderConfirmed && (
+          <div className="bg-yellow-900/20 border border-yellow-600/40 rounded-2xl p-4">
+            <p className="text-yellow-400 text-sm font-semibold mb-1">⚠️ Крупный заказ</p>
+            <p className="text-yellow-300/80 text-xs">
+              Сумма заказа {formatPrice(finalTotal)}. Убедитесь, что у вас есть сдача. Нажмите «Подтвердить» ещё раз.
+            </p>
+          </div>
+        )}
 
         {error && (
           <div className="bg-red-900/30 border border-red-700 rounded-2xl p-4 text-red-400 text-sm">
@@ -189,9 +345,19 @@ export default function CheckoutPage() {
         <button
           onClick={handleSubmit}
           disabled={loading}
-          className="w-full bg-brand-red hover:bg-red-800 disabled:bg-gray-600 text-white rounded-2xl px-5 py-4 font-bold text-base transition-colors shadow-xl"
+          className={`w-full text-white rounded-2xl px-5 py-4 font-bold text-base transition-colors shadow-xl ${
+            isLargeOrder && largOrderConfirmed
+              ? 'bg-yellow-700 hover:bg-yellow-600 disabled:bg-gray-600'
+              : 'bg-brand-red hover:bg-red-800 disabled:bg-gray-600'
+          }`}
         >
-          {loading ? 'Оформляем...' : `Подтвердить заказ — ${formatPrice(total())}`}
+          {loading
+            ? 'Оформляем...'
+            : isLargeOrder && !largOrderConfirmed
+            ? `Подтвердить — ${formatPrice(finalTotal)}`
+            : isLargeOrder && largOrderConfirmed
+            ? `Да, подтвердить — ${formatPrice(finalTotal)}`
+            : `Подтвердить заказ — ${formatPrice(finalTotal)}`}
         </button>
       </div>
     </main>

@@ -8,9 +8,10 @@ interface Props {
   departments: Department[]
   categories: Category[]
   menuItems: MenuItem[]
+  closedDeptIds?: Set<number>
 }
 
-export default function MenuGrid({ departments, categories, menuItems }: Props) {
+export default function MenuGrid({ departments, categories, menuItems, closedDeptIds }: Props) {
   const [activeDept, setActiveDept] = useState<number | null>(null)
 
   useEffect(() => {
@@ -18,6 +19,8 @@ export default function MenuGrid({ departments, categories, menuItems }: Props) 
       setActiveDept(departments[0].id)
     }
   }, [departments, activeDept])
+
+  const activeDeptSlug = departments.find((d) => d.id === activeDept)?.slug ?? ''
 
   const filteredCategories = categories.filter(
     (c) => c.department_id === activeDept
@@ -40,6 +43,9 @@ export default function MenuGrid({ departments, categories, menuItems }: Props) 
             >
               <span>{dept.icon}</span>
               <span>{dept.name}</span>
+              {closedDeptIds?.has(dept.id) && (
+                <span className="text-xs text-gray-600 font-normal ml-0.5">· закрыто</span>
+              )}
             </button>
           ))}
         </div>
@@ -55,7 +61,7 @@ export default function MenuGrid({ departments, categories, menuItems }: Props) 
               <h2 className="text-base font-bold mb-3 text-white">{cat.name}</h2>
               <div className="grid grid-cols-2 gap-3">
                 {items.map((item) => (
-                  <ItemCard key={item.id} item={item} />
+                  <ItemCard key={item.id} item={item} departmentSlug={activeDeptSlug} />
                 ))}
               </div>
             </div>

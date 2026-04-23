@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react'
 import type { TelegramUser } from '@/lib/types'
 
+export type TelegramLocation = { latitude: number; longitude: number }
+
 declare global {
   interface Window {
     Telegram?: {
@@ -27,6 +29,13 @@ declare global {
         }
         colorScheme: 'light' | 'dark'
         themeParams: Record<string, string>
+        requestContact?: (callback: (isSent: boolean) => void) => void
+        LocationManager?: {
+          isInited: boolean
+          isLocationAvailable: boolean
+          init: (cb: () => void) => void
+          getLocation: (cb: (loc: TelegramLocation | null) => void) => void
+        }
       }
     }
   }

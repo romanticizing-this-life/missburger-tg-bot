@@ -1,7 +1,15 @@
 import { createHmac } from 'crypto'
+import { cookies } from 'next/headers'
 
 function secret() {
   return process.env.TELEGRAM_WEBHOOK_SECRET!
+}
+
+export async function verifyAdminRequest(): Promise<boolean> {
+  const cookieStore = await cookies()
+  const session = cookieStore.get('admin_session')
+  if (!session) return false
+  return !!verifyAdminToken(session.value)
 }
 
 export function generateAdminToken(telegramId: number): string {

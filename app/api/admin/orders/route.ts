@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
+import { verifyAdminRequest } from '@/lib/adminAuth'
 
 export async function GET(req: NextRequest) {
+  if (!(await verifyAdminRequest())) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
   const db = createServiceClient()
   const { searchParams } = new URL(req.url)
 
@@ -32,6 +36,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
+  if (!(await verifyAdminRequest())) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
   try {
     const { orderId, status } = await req.json()
     const db = createServiceClient()

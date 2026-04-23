@@ -7,6 +7,7 @@ const NAV = [
   { href: '/admin', label: 'Dashboard' },
   { href: '/admin/orders', label: 'Заказы' },
   { href: '/admin/menu', label: 'Меню' },
+  { href: '/admin/hours', label: 'Часы' },
 ]
 
 export default function AdminNav() {

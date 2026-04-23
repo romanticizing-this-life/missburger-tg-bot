@@ -7,7 +7,7 @@ import { sendOrderConfirmation, notifyAdminNewOrder } from '@/lib/bot'
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { initData, orderType, locationId, deliveryAddress, comment, items, total } = body
+    const { initData, orderType, locationId, deliveryAddress, comment, items, total, phone } = body
 
     // Validate Telegram auth (allow bypass in dev with empty initData)
     let telegramId: number | null = null
@@ -29,17 +29,17 @@ export async function POST(req: NextRequest) {
     let userId: number | null = null
     if (telegramId) {
       const user = parseTelegramUser(initData)
+      const upsertPayload: Record<string, unknown> = {
+        telegram_id: telegramId,
+        first_name: user?.first_name || '',
+        last_name: user?.last_name || null,
+        username: user?.username || null,
+      }
+      if (phone) upsertPayload.phone_number = phone
+
       const { data: upsertedUser, error: userError } = await db
         .from('users')
-        .upsert(
-          {
-            telegram_id: telegramId,
-            first_name: user?.first_name || '',
-            last_name: user?.last_name || null,
-            username: user?.username || null,
-          },
-          { onConflict: 'telegram_id' }
-        )
+        .upsert(upsertPayload, { onConflict: 'telegram_id' })
         .select('id')
         .single()
       if (userError) throw userError

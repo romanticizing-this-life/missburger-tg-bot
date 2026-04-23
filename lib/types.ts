@@ -5,6 +5,8 @@ export type Department = {
   icon: string
   sort_order: number
   is_active: boolean
+  open_time: string | null
+  close_time: string | null
 }
 
 export type Category = {

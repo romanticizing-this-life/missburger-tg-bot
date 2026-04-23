@@ -4,18 +4,16 @@ import { useMenu } from '@/hooks/useMenu'
 import { useTelegramUser } from '@/hooks/useTelegramUser'
 import MenuGrid from '@/components/MenuGrid'
 import CartButton from '@/components/CartButton'
-import Image from 'next/image'
-
 export default function Home() {
-  const { departments, categories, menuItems, loading, error } = useMenu()
+  const { departments, categories, menuItems, closedDeptIds, loading, error } = useMenu()
   const { user } = useTelegramUser()
 
   return (
     <main>
       {/* Header */}
       <div className="flex items-center gap-3 px-4 py-3 bg-brand-card border-b border-brand-muted sticky top-0 z-20">
-        <div className="relative w-9 h-9 flex-shrink-0">
-          <Image src="/logo.png" alt="Miss Burger" fill className="object-contain rounded-lg" />
+        <div className="w-9 h-9 flex-shrink-0 bg-brand-red rounded-lg flex items-center justify-center font-black text-white text-sm">
+          MB
         </div>
         <div>
           <h1 className="text-base font-bold text-white leading-tight">Miss Burger</h1>
@@ -45,6 +43,7 @@ export default function Home() {
           departments={departments}
           categories={categories}
           menuItems={menuItems}
+          closedDeptIds={closedDeptIds}
         />
       )}
 

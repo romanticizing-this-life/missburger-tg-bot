@@ -3,42 +3,53 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useTelegramUser } from '@/hooks/useTelegramUser'
-import { supabase } from '@/lib/supabase'
+import { useCart } from '@/hooks/useCart'
 import OrderStatus from '@/components/OrderStatus'
-import type { Order } from '@/lib/types'
+import type { Order, OrderItem, MenuItem } from '@/lib/types'
 
 const formatPrice = (uzs: number) => uzs.toLocaleString('ru-RU') + " so'm"
 
+type OrderWithItems = Order & { order_items: OrderItem[] }
+
 export default function OrdersPage() {
   const router = useRouter()
-  const { user } = useTelegramUser()
-  const [orders, setOrders] = useState<Order[]>([])
+  const { initData } = useTelegramUser()
+  const { addItem, clear } = useCart()
+  const [orders, setOrders] = useState<OrderWithItems[]>([])
   const [loading, setLoading] = useState(true)
+  const [repeating, setRepeating] = useState<number | null>(null)
 
   useEffect(() => {
-    if (!user) return
-    const currentUser = user
-    async function load() {
-      try {
-        const { data: userData } = await supabase
-          .from('users')
-          .select('id')
-          .eq('telegram_id', currentUser.id)
-          .single()
-        if (!userData) return
-        const { data } = await supabase
-          .from('orders')
-          .select('*')
-          .eq('user_id', userData.id)
-          .order('created_at', { ascending: false })
-          .limit(20)
-        setOrders(data || [])
-      } finally {
-        setLoading(false)
+    if (!initData) return
+    fetch('/api/orders/history', {
+      headers: { 'x-init-data': initData },
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data)) setOrders(data)
+      })
+      .finally(() => setLoading(false))
+  }, [initData])
+
+  const repeatOrder = async (order: OrderWithItems) => {
+    setRepeating(order.id)
+    clear()
+    order.order_items.forEach((oi) => {
+      const asMenuItem: MenuItem = {
+        id: oi.menu_item_id,
+        category_id: 0,
+        name: oi.name,
+        description: null,
+        price: oi.price,
+        image_url: null,
+        is_available: true,
+        sort_order: 0,
       }
-    }
-    load()
-  }, [user])
+      for (let i = 0; i < oi.quantity; i++) addItem(asMenuItem)
+    })
+    setRepeating(null)
+    router.push('/cart')
+  }
 
   return (
     <main className="min-h-screen">
@@ -66,12 +77,11 @@ export default function OrdersPage() {
           </div>
         )}
         {orders.map((order) => (
-          <div
-            key={order.id}
-            onClick={() => router.push(`/order/${order.id}`)}
-            className="bg-brand-card rounded-2xl p-4 mb-3 cursor-pointer hover:bg-brand-muted transition-colors"
-          >
-            <div className="flex justify-between items-start mb-3">
+          <div key={order.id} className="bg-brand-card rounded-2xl p-4 mb-3">
+            <div
+              className="flex justify-between items-start mb-3 cursor-pointer"
+              onClick={() => router.push(`/order/${order.id}`)}
+            >
               <div>
                 <p className="font-bold">Заказ #{order.id}</p>
                 <p className="text-xs text-gray-400 mt-0.5">
@@ -79,10 +89,38 @@ export default function OrdersPage() {
                     day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit',
                   })}
                 </p>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  {order.order_type === 'delivery' ? '🚚 Доставка' : '🏪 Самовывоз'}
+                </p>
               </div>
               <span className="text-brand-orange font-bold text-sm">{formatPrice(order.total)}</span>
             </div>
+
             <OrderStatus status={order.status} />
+
+            {order.order_items?.length > 0 && (
+              <div className="mt-3 border-t border-brand-muted pt-3">
+                <p className="text-xs text-gray-500 mb-1.5">Состав:</p>
+                {order.order_items.slice(0, 3).map((oi) => (
+                  <p key={oi.id} className="text-xs text-gray-300">
+                    {oi.name} × {oi.quantity}
+                  </p>
+                ))}
+                {order.order_items.length > 3 && (
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    + ещё {order.order_items.length - 3} позиции
+                  </p>
+                )}
+              </div>
+            )}
+
+            <button
+              onClick={() => repeatOrder(order)}
+              disabled={repeating === order.id}
+              className="mt-3 w-full bg-brand-muted hover:bg-gray-600 disabled:opacity-50 text-white rounded-xl py-2.5 text-sm font-semibold transition-colors"
+            >
+              {repeating === order.id ? 'Добавляем...' : '🔁 Повторить заказ'}
+            </button>
           </div>
         ))}
       </div>

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import OrderStatus from '@/components/OrderStatus'
+import { supabase } from '@/lib/supabase'
 import type { Order, OrderItem } from '@/lib/types'
 
 const formatPrice = (uzs: number) => uzs.toLocaleString('ru-RU') + " so'm"
@@ -32,8 +33,19 @@ export default function OrderPage() {
 
   useEffect(() => {
     fetchOrder()
-    const interval = setInterval(fetchOrder, 15000)
-    return () => clearInterval(interval)
+
+    const channel = supabase
+      .channel(`order-${id}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'orders', filter: `id=eq.${id}` },
+        (payload) => {
+          setOrder((prev) => prev ? { ...prev, ...(payload.new as Order) } : prev)
+        }
+      )
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
   }, [id])
 
   return (
