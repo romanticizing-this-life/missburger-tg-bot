@@ -34,6 +34,9 @@ export default function AdminMenuPage() {
   const [loading, setLoading] = useState(true)
   const [editingPrice, setEditingPrice] = useState<number | null>(null)
   const [priceValue, setPriceValue] = useState('')
+  const [editingName, setEditingName] = useState<number | null>(null)
+  const [nameValue, setNameValue] = useState('')
+  const [editingCategory, setEditingCategory] = useState<number | null>(null)
   const [uploading, setUploading] = useState<number | null>(null)
   const [uploadError, setUploadError] = useState('')
   const [search, setSearch] = useState('')
@@ -71,6 +74,28 @@ export default function AdminMenuPage() {
       })
     }
     setEditingPrice(null)
+    fetchData()
+  }
+
+  const saveName = async (id: number) => {
+    if (nameValue.trim()) {
+      await fetch('/api/admin/menu', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, name: nameValue.trim() }),
+      })
+    }
+    setEditingName(null)
+    fetchData()
+  }
+
+  const saveCategory = async (id: number, category_id: number) => {
+    await fetch('/api/admin/menu', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, category_id }),
+    })
+    setEditingCategory(null)
     fetchData()
   }
 
@@ -170,9 +195,54 @@ export default function AdminMenuPage() {
               </button>
 
               <div className="flex-1 min-w-0">
-                <p className="font-semibold text-sm leading-tight">{item.name}</p>
-                <p className="text-xs text-gray-500 mt-0.5">{getCategoryName(item.category_id)}</p>
+                {/* Name */}
+                {editingName === item.id ? (
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <input
+                      type="text"
+                      value={nameValue}
+                      onChange={(e) => setNameValue(e.target.value)}
+                      className="flex-1 bg-brand-muted text-white rounded-lg px-2 py-1 text-sm outline-none focus:ring-1 focus:ring-brand-orange"
+                      autoFocus
+                      onKeyDown={(e) => e.key === 'Enter' && saveName(item.id)}
+                    />
+                    <button onClick={() => saveName(item.id)} className="bg-green-700 text-white rounded-lg px-2 py-1 text-xs font-bold">✓</button>
+                    <button onClick={() => setEditingName(null)} className="bg-brand-muted text-white rounded-lg px-2 py-1 text-xs">✕</button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => { setEditingName(item.id); setNameValue(item.name) }}
+                    className="font-semibold text-sm leading-tight text-left hover:text-brand-orange transition-colors w-full"
+                    title="Нажмите чтобы переименовать"
+                  >
+                    {item.name}
+                  </button>
+                )}
 
+                {/* Category */}
+                {editingCategory === item.id ? (
+                  <select
+                    defaultValue={item.category_id}
+                    onChange={(e) => saveCategory(item.id, Number(e.target.value))}
+                    onBlur={() => setEditingCategory(null)}
+                    className="bg-brand-muted text-white rounded-lg px-2 py-1 text-xs outline-none focus:ring-1 focus:ring-brand-orange mt-0.5 w-full"
+                    autoFocus
+                  >
+                    {categories.map((c) => (
+                      <option key={c.id} value={c.id}>{getCategoryName(c.id)}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <button
+                    onClick={() => setEditingCategory(item.id)}
+                    className="text-xs text-gray-500 hover:text-brand-orange mt-0.5 text-left transition-colors"
+                    title="Нажмите чтобы сменить категорию"
+                  >
+                    {getCategoryName(item.category_id)} ›
+                  </button>
+                )}
+
+                {/* Price */}
                 {editingPrice === item.id ? (
                   <div className="flex items-center gap-2 mt-2">
                     <input
