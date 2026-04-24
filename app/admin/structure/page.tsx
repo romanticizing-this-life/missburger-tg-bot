@@ -41,8 +41,8 @@ export default function AdminStructurePage() {
       fetch('/api/admin/departments'),
       fetch('/api/admin/categories'),
     ])
-    if (dRes.ok) setDepartments(await dRes.json())
-    if (cRes.ok) setCategories(await cRes.json())
+    if (dRes.ok) setDepartments((await dRes.json()) as Department[])
+    if (cRes.ok) setCategories((await cRes.json()) as CategoryWithDept[])
     setLoading(false)
   }
 
@@ -63,7 +63,7 @@ export default function AdminStructurePage() {
       body: JSON.stringify({ id, name: deptName.trim(), icon: deptIcon.trim() }),
     })
     if (res.ok) { setEditingDept(null); flash('Раздел обновлён'); fetchAll() }
-    else setError((await res.json()).error)
+    else setError(((await res.json()) as { error: string }).error)
   }
 
   // ── Category actions ────────────────────────────────────────────
@@ -81,11 +81,11 @@ export default function AdminStructurePage() {
       body: JSON.stringify({ id, name: catName.trim(), department_id: catDeptId }),
     })
     if (res.ok) { setEditingCat(null); flash('Категория обновлена'); fetchAll() }
-    else setError((await res.json()).error)
+    else setError(((await res.json()) as { error: string }).error)
   }
 
   const deleteCat = async (id: number, name: string) => {
-    if (!confirm(`Удалить категорию «${name}»? Это нельзя отменить.`)) return
+    if (!window.confirm(`Удалить категорию «${name}»? Это нельзя отменить.`)) return
     setError('')
     const res = await fetch('/api/admin/categories', {
       method: 'DELETE',
@@ -93,7 +93,7 @@ export default function AdminStructurePage() {
       body: JSON.stringify({ id }),
     })
     if (res.ok) { flash('Категория удалена'); fetchAll() }
-    else setError((await res.json()).error)
+    else setError(((await res.json()) as { error: string }).error)
   }
 
   const addCategory = async () => {
@@ -110,7 +110,7 @@ export default function AdminStructurePage() {
       setNewCatDeptId(0)
       flash('Категория добавлена')
       fetchAll()
-    } else setError((await res.json()).error)
+    } else setError(((await res.json()) as { error: string }).error)
     setAddingCat(false)
   }
 

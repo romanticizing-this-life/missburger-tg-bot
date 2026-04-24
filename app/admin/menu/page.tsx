@@ -223,7 +223,7 @@ export default function AdminMenuPage() {
                 {editingCategory === item.id ? (
                   <select
                     defaultValue={item.category_id}
-                    onChange={(e) => saveCategory(item.id, Number(e.target.value))}
+                    onChange={(e) => saveCategory(item.id, Number((e.target as HTMLSelectElement).value))}
                     onBlur={() => setEditingCategory(null)}
                     className="bg-brand-muted text-white rounded-lg px-2 py-1 text-xs outline-none focus:ring-1 focus:ring-brand-orange mt-0.5 w-full"
                     autoFocus
